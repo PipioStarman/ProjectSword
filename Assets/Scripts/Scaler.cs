@@ -16,6 +16,10 @@ public class Scaler : MonoBehaviour
     // ============================================================
     // ROTACIÓN DURANTE EL ESCALADO
     // ============================================================
+    [Header("Retorno por Doble Clic")]
+    [Tooltip("Tiempo máximo en segundos entre pulsaciones para detectar doble clic.")]
+    public float tiempoDobleClic = 0.3f;
+    private float ultimoTiempoPulsadoF = -999f;
 
     [Header("Rotación mientras escalas")]
     public float gradosRotacionEscalada = 90f;
@@ -153,6 +157,11 @@ public class Scaler : MonoBehaviour
 
     private void Update()
     {
+        // DETECCIÓN DE DOBLE CLIC EN "F"
+    if (Input.GetKeyDown(KeyCode.LeftControl))
+    {
+        RetornarEspadaAlPersonaje();
+    }
         ActualizarRotacionPorTeclas();
 
         bool botonPulsado =
@@ -172,7 +181,14 @@ public class Scaler : MonoBehaviour
             SalirDeModoFantasma();
         }
     }
+    private void RetornarEspadaAlPersonaje()
+    {
 
+        Debug.Log("DEVUELVE ESPADA");
+
+        FakeSword.SetActive(true);
+        
+    }
     // ============================================================
     // ELEGIR DURACIÓN DEL ANCLAJE
     // ============================================================
