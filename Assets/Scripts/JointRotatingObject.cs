@@ -45,6 +45,13 @@ public class JointRotatingObject : MonoBehaviour
 
     [Header("Debug")]
 
+    [Header("Bloqueo en reposo")]
+    [SerializeField] private float toleranciaAngular = 1f;
+    [SerializeField] private float toleranciaVelocidad = 0.1f;
+
+    private Quaternion rotacionInicial;
+    private bool rotacionEnCurso;
+
     [SerializeField] private bool estaActivado;
 
     private Rigidbody rb;
@@ -52,6 +59,7 @@ public class JointRotatingObject : MonoBehaviour
 
     private void Awake()
     {
+        rotacionInicial = transform.localRotation;
         rb = GetComponent<Rigidbody>();
         joint = GetComponent<ConfigurableJoint>();
 
@@ -60,11 +68,37 @@ public class JointRotatingObject : MonoBehaviour
 
         estaActivado = empezarActivado;
         AplicarRotacionObjetivo();
+        rb.constraints = RigidbodyConstraints.FreezeRotation;
     }
 
     private void FixedUpdate()
     {
         ActualizarDrive();
+
+        if (!rotacionEnCurso)
+            return;
+
+        float direccion = invertirDireccion ? -1f : 1f;
+
+        float angulo = estaActivado
+            ? anguloActivado * direccion
+            : 0f;
+
+        Quaternion objetivo =
+            rotacionInicial *
+            Quaternion.AngleAxis(angulo, ObtenerEjeLocal());
+
+        float diferencia =
+            Quaternion.Angle(transform.localRotation, objetivo);
+
+        if (diferencia <= toleranciaAngular &&
+            rb.angularVelocity.magnitude <= toleranciaVelocidad)
+        {
+            rb.angularVelocity = Vector3.zero;
+            rb.constraints = RigidbodyConstraints.FreezeRotation;
+
+            rotacionEnCurso = false;
+        }
     }
 
     // ============================================================
@@ -244,6 +278,10 @@ public class JointRotatingObject : MonoBehaviour
             return;
 
         estaActivado = activado;
+        rotacionEnCurso = true;
+
+        rb.constraints = RigidbodyConstraints.None;
+
         AplicarRotacionObjetivo();
     }
 

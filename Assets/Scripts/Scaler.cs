@@ -46,7 +46,15 @@ public class Scaler : MonoBehaviour
 
     [Header("Ajustes de Escalado")]
     public float velocidadEscala = 2500f;
+    [Tooltip("Escala local mínima compartida para la longitud (Z) y anchura (Y).")]
     public float escalaMinima = 0.1f;
+
+    [Header("Límites máximos de la espada")]
+    [Tooltip("Escala local máxima del eje Z (longitud). No equivale necesariamente a metros.")]
+    [Min(0.01f)] public float escalaMaximaLongitud = 8f;
+
+    [Tooltip("Escala local máxima del eje Y (anchura). No equivale necesariamente a metros.")]
+    [Min(0.01f)] public float escalaMaximaAnchura = 3f;
 
     private Color colorOriginal;
     private bool estaTocando;
@@ -142,6 +150,10 @@ public class Scaler : MonoBehaviour
             matEspada.color = Color.green;
             colorOriginal = matEspada.color;
         }
+
+        // Respeta los límites desde el arranque, incluso si el prefab
+        // tenía una escala mayor o menor que la permitida.
+        AplicarLimitesEscalado();
 
         if (SwordFloorGhost != null)
             SwordFloorGhost.SetActive(false);
@@ -621,81 +633,82 @@ public class Scaler : MonoBehaviour
 
     private void ProcesarEscalado()
     {
-        float delta =
-            velocidadEscala * Time.deltaTime;
+        float delta = velocidadEscala * Time.deltaTime;
 
         if (inputReader == null)
             return;
 
-        Vector2 direccion =
-            inputReader.scaleDirections;
+        Vector2 direccion = inputReader.scaleDirections;
 
-        // ================================
-        // NUEVO: Escalado con ratón
-        // ================================
-
+        // Conservamos el control por ratón y teclado original.
         float mouseX = Input.GetAxis("Mouse X") * sensibilidadRatonX;
         float mouseY = Input.GetAxis("Mouse Y") * sensibilidadRatonY;
 
         direccion.x += mouseX;
         direccion.y += mouseY;
 
-        // Eje Y: aumentar o reducir longitud.
+        Vector3 escala = transform.localScale;
 
+        // Eje Z: longitud (arriba/abajo).
         if (direccion.y > 0.1f)
-        {
-            transform.localScale +=
-                new Vector3(0f, 0f, delta);
-        }
+            escala.z += delta;
         else if (direccion.y < -0.1f)
-        {
-            float nuevaZ = Mathf.Max(
-                transform.localScale.z - delta,
-                escalaMinima
-            );
+            escala.z -= delta;
 
-            transform.localScale =
-                new Vector3(
-                    transform.localScale.x,
-                    transform.localScale.y,
-                    nuevaZ
-                );
-        }
-
-        // Eje X: aumentar o reducir anchura.
-
+        // Eje Y: anchura. Respetamos el sentido original del control.
         if (direccion.x > 0.1f)
-        {
-            float nuevaY = Mathf.Max(
-                transform.localScale.y - delta,
-                escalaMinima
-            );
-
-            transform.localScale =
-                new Vector3(
-                    transform.localScale.x,
-                    nuevaY,
-                    transform.localScale.z
-                );
-        }
+            escala.y -= delta;
         else if (direccion.x < -0.1f)
-        {
-            transform.localScale +=
-                new Vector3(0f, delta, 0f);
-        }
+            escala.y += delta;
 
-        if (
-            SwordFloorGhost != null &&
-            SwordFloorGhost.activeSelf
-        )
-        {
-            SwordFloorGhost.transform.localScale =
-                transform.localScale;
+        escala.z = Mathf.Clamp(escala.z, escalaMinima, escalaMaximaLongitud);
+        escala.y = Mathf.Clamp(escala.y, escalaMinima, escalaMaximaAnchura);
+        // X (grosor) permanece sin modificar.
+        transform.localScale = escala;
 
+        if (SwordFloorGhost != null && SwordFloorGhost.activeSelf)
+        {
+            SwordFloorGhost.transform.localScale = transform.localScale;
             SwordFloorGhost.transform.rotation =
-                transform.rotation *
-                Quaternion.Euler(0f, 90f, 0f);
+                transform.rotation * Quaternion.Euler(0f, 90f, 0f);
         }
+    }
+
+    private void AplicarLimitesEscalado()
+    {
+        Vector3 escala = transform.localScale;
+        escala.z = Mathf.Clamp(escala.z, escalaMinima, escalaMaximaLongitud);
+        escala.y = Mathf.Clamp(escala.y, escalaMinima, escalaMaximaAnchura);
+        transform.localScale = escala;
+    }
+
+    private void OnValidate()
+    {
+        escalaMinima = Mathf.Max(0.01f, escalaMinima);
+        escalaMaximaLongitud = Mathf.Max(escalaMinima, escalaMaximaLongitud);
+        escalaMaximaAnchura = Mathf.Max(escalaMinima, escalaMaximaAnchura);
+        velocidadEscala = Mathf.Max(0f, velocidadEscala);
+    }
+
+    // ============================================================
+    // MEDIDAS REALES (PARA DISEÑAR EL BLOCKOUT)
+    // ============================================================
+
+    [ContextMenu("Mostrar medidas reales de la espada")]
+    private void MostrarMedidasReales()
+    {
+        BoxCollider caja = coll != null ? coll : GetComponent<BoxCollider>();
+        if (caja == null)
+        {
+            Debug.LogWarning("No hay BoxCollider para medir la espada.", this);
+            return;
+        }
+
+        // Se mide el BoxCollider transformado al mundo, no el localScale.
+        float longitud = transform.TransformVector(Vector3.forward * caja.size.z).magnitude;
+        float anchura = transform.TransformVector(Vector3.up * caja.size.y).magnitude;
+
+        Debug.Log($"Espada: longitud {longitud:F2} m | anchura {anchura:F2} m (collider).", this);
     }
 
     // ============================================================

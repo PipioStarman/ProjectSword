@@ -220,6 +220,11 @@ namespace FIMSpace.FEyes
         /// <summary>
         /// Executing procedural animation
         /// </summary>
+        /// 
+        public void OpenEyes()
+        {
+            MinOpenValue = 1;
+        }
         protected virtual void LateUpdate()
         {
             if (optimizeUpdate) return;

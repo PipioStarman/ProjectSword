@@ -1,3 +1,4 @@
+
 using UnityEngine;
 
 public class PlayerCarryController : MonoBehaviour
@@ -5,7 +6,6 @@ public class PlayerCarryController : MonoBehaviour
     [Header("Referencias")]
     public Transform carryPoint;
     public Transform puntoDeteccion;
-    
 
     [Header("Detección")]
     public float radioDeteccion = 1.2f;
@@ -23,22 +23,27 @@ public class PlayerCarryController : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(teclaAccion))
+        // CLICK IZQUIERDO: coger o lanzar
+        if (Input.GetMouseButtonDown(0))
         {
             if (objetoActual == null)
             {
-                // Si no llevo nada, intento coger algo.
                 IntentarCogerObjeto();
             }
             else
             {
-                // Si ya llevo algo, lo tiro.
                 TirarObjeto();
             }
         }
-        if (Input.GetKeyDown(KeyCode.LeftControl))
+
+        // TECLA E: coger o soltar
+        if (Input.GetKeyDown(teclaAccion))
         {
-            if (objetoActual != null)
+            if (objetoActual == null)
+            {
+                IntentarCogerObjeto();
+            }
+            else
             {
                 SoltarObjeto();
             }
@@ -47,6 +52,9 @@ public class PlayerCarryController : MonoBehaviour
 
     private void IntentarCogerObjeto()
     {
+        if (puntoDeteccion == null || carryPoint == null)
+            return;
+
         Collider[] hits = Physics.OverlapSphere(
             puntoDeteccion.position,
             radioDeteccion,
@@ -62,7 +70,8 @@ public class PlayerCarryController : MonoBehaviour
 
         foreach (Collider hit in hits)
         {
-            CarryableObject carryable = hit.GetComponentInParent<CarryableObject>();
+            CarryableObject carryable =
+                hit.GetComponentInParent<CarryableObject>();
 
             if (carryable == null)
                 continue;
@@ -70,7 +79,10 @@ public class PlayerCarryController : MonoBehaviour
             if (carryable.estaCogido)
                 continue;
 
-            float distancia = Vector3.Distance(transform.position, carryable.transform.position);
+            float distancia = Vector3.Distance(
+                puntoDeteccion.position,
+                carryable.transform.position
+            );
 
             if (distancia < distanciaMasCercana)
             {
@@ -88,19 +100,19 @@ public class PlayerCarryController : MonoBehaviour
 
     private void SoltarObjeto()
     {
+        if (objetoActual == null)
+            return;
+
         objetoActual.Soltar();
         objetoActual = null;
     }
 
     private void TirarObjeto()
     {
-        Vector3 direccion;
+        if (objetoActual == null)
+            return;
 
-        
-            direccion = transform.forward;
-        
-
-        // --- NUEVO: pequeño empuje hacia arriba para que no vaya tan plano ---
+        Vector3 direccion = transform.forward;
         direccion += Vector3.up * fuerzaTiroVertical;
 
         objetoActual.Tirar(direccion, fuerzaTiro);
@@ -113,6 +125,9 @@ public class PlayerCarryController : MonoBehaviour
             return;
 
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(puntoDeteccion.position, radioDeteccion);
+        Gizmos.DrawWireSphere(
+            puntoDeteccion.position,
+            radioDeteccion
+        );
     }
 }

@@ -24,6 +24,9 @@ public class JointSlidingDoor : MonoBehaviour
     public float amortiguacion = 80f;
     public float fuerzaMaxima = 1000f;
 
+    [Header("Bloqueo")]
+    public bool bloqueada = true;
+
     [Header("Debug")]
     public bool empezarAbierta = true;
     public bool jugadorCerca;
@@ -59,6 +62,10 @@ public class JointSlidingDoor : MonoBehaviour
     {
         DetectarJugadorPorDistancia();
 
+        // Mientras esté bloqueada, no responde al jugador.
+        if (bloqueada)
+            return;
+
         if (!cerrarCuandoJugadorCerca)
             return;
 
@@ -67,7 +74,28 @@ public class JointSlidingDoor : MonoBehaviour
         else
             AbrirPuerta();
     }
+    // Desbloquea y abre permanentemente
+    public void DesbloquearPuerta()
+    {
+        bloqueada = false;
+        cerrarCuandoJugadorCerca = false;
 
+        AbrirPuerta();
+    }
+
+    // Desbloquea manteniendo la detección por distancia
+    public void DesbloquearPuertaConProximidad()
+    {
+        bloqueada = false;
+        cerrarCuandoJugadorCerca = true;
+
+        DetectarJugadorPorDistancia();
+
+        if (jugadorCerca)
+            CerrarPuerta();
+        else
+            AbrirPuerta();
+    }
     private void DetectarJugadorPorDistancia()
     {
         if (player == null)

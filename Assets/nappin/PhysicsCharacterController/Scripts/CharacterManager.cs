@@ -23,6 +23,12 @@ namespace PhysicsCharacterController
         public float dampSpeedUp = 0.2f;
         public float dampSpeedDown = 0.1f;
 
+        [Header("Sharp turns")]
+        [Tooltip("Elimina el deslizamiento horizontal al invertir bruscamente la direccion en el suelo.")]
+        public bool stopMomentumOnSharpTurns = true;
+        [Range(90f, 180f)]
+        public float sharpTurnAngle = 150f;
+
 
         [Header("Jump and gravity specifics")]
         public float jumpVelocity = 20f;
@@ -151,7 +157,7 @@ namespace PhysicsCharacterController
         private Vector3 prevGroundNormal;
         private bool prevGrounded;
 
-        private float coyoteJumpMultiplier = 1f;
+        public float coyoteJumpMultiplier = 1f;
 
         private bool isGrounded = false;
         private bool isTouchingSlope = false;
@@ -226,6 +232,10 @@ namespace PhysicsCharacterController
             {
                 wallJumpControlLockTimer -= Time.fixedDeltaTime;
             }
+
+            // Actualizar el angulo ANTES de calcular la direccion de avance.
+            // Antes se usaba el angulo del FixedUpdate anterior al girar.
+            UpdateTargetAngle();
 
             //local vectors
             CheckGrounded();
@@ -399,8 +409,8 @@ namespace PhysicsCharacterController
                 else
                 {
                     //set forward
-                    Vector3 tmpGlobalForward = transform.forward.normalized;
-                    Vector3 tmpForward = new Vector3(tmpGlobalForward.x, Vector3.ProjectOnPlane(transform.forward.normalized, slopeHit.normal).normalized.y, tmpGlobalForward.z);
+                    Vector3 tmpGlobalForward = (Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward).normalized;
+                    Vector3 tmpForward = new Vector3(tmpGlobalForward.x, Vector3.ProjectOnPlane(tmpGlobalForward, slopeHit.normal).normalized.y, tmpGlobalForward.z);
                     Vector3 tmpReactionForward = new Vector3(tmpForward.x, tmpGlobalForward.y - tmpForward.y, tmpForward.z);
 
                     if (currentSurfaceAngle <= maxClimbableSlopeAngle && !isTouchingStep)
@@ -447,7 +457,7 @@ namespace PhysicsCharacterController
             {
                 groundNormal = Vector3.zero;
 
-                forward = Vector3.ProjectOnPlane(transform.forward, slopeHit.normal).normalized;
+                forward = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
                 globalForward = forward;
                 reactionForward = forward;
 
@@ -509,6 +519,20 @@ namespace PhysicsCharacterController
         {
             ignoreGroundTimer = time;
         }
+        private void UpdateTargetAngle()
+        {
+            // Respetar el bloqueo durante la pertiga, wall jump y escalado.
+            if (isVaulting || wallJumpControlLockTimer > 0f || isScaling)
+                return;
+
+            if (axisInput.magnitude > movementThrashold)
+            {
+                targetAngle =
+                    Mathf.Atan2(axisInput.x, axisInput.y) * Mathf.Rad2Deg +
+                    characterCamera.transform.eulerAngles.y;
+            }
+        }
+
         private void MoveWalk()
         {
             float crouchMultiplier = isCrouch ? crouchSpeedMultiplier : 1f;
@@ -536,11 +560,6 @@ namespace PhysicsCharacterController
             }
             else if (axisInput.magnitude > movementThrashold)
             {
-                targetAngle =
-                    Mathf.Atan2(axisInput.x, axisInput.y) *
-                    Mathf.Rad2Deg +
-                    characterCamera.transform.eulerAngles.y;
-
                 float speed = sprint
                     ? sprintSpeed
                     : movementSpeed;
@@ -549,6 +568,22 @@ namespace PhysicsCharacterController
                     forward *
                     speed *
                     crouchMultiplier;
+            }
+
+            // Evitar que la inercia del Rigidbody arrastre al personaje
+            // al pedir una direccion casi opuesta a la que llevaba.
+            // Se aplica solo en el suelo: no modifica wall jump ni movimientos aereos.
+            if (stopMomentumOnSharpTurns && isGrounded && !isScaling &&
+                axisInput.magnitude > movementThrashold)
+            {
+                Vector3 horizontalTarget = new Vector3(targetVel.x, 0f, targetVel.z);
+                if (horizontalVel.sqrMagnitude > 0.01f &&
+                    horizontalTarget.sqrMagnitude > 0.01f &&
+                    Vector3.Angle(horizontalVel, horizontalTarget) >= sharpTurnAngle)
+                {
+                    horizontalVel = Vector3.zero;
+                    currVelocity = Vector3.zero;
+                }
             }
 
             Vector3 smoothedHorizontal =
@@ -594,7 +629,7 @@ namespace PhysicsCharacterController
         private void MoveJump()
         {
             //jumped
-            if (jump && !isScaling && isGrounded && ((isTouchingSlope && currentSurfaceAngle <= maxClimbableSlopeAngle) || !isTouchingSlope) && !isTouchingWall)
+            if (jump && !isScaling && isGrounded && ((isTouchingSlope && currentSurfaceAngle <= maxClimbableSlopeAngle) || !isTouchingSlope))
             {
                 rigidbody.linearVelocity += Vector3.up * jumpVelocity;
                 isJumping = true;
